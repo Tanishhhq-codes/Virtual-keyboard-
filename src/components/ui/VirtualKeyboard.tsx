@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { keyboardLayout, type KeyData } from "@/data/keyboard";
 import { useKeyboardSound } from "@/hooks/useKeyboardSound";
 
@@ -146,6 +146,11 @@ export default function VirtualKeyboard({
 
   const text = typedText ?? internalText;
   const setText = onTextChange ?? setInternalText;
+  const textRef = useRef(text);
+
+  useEffect(() => {
+    textRef.current = text;
+  }, [text]);
 
   useEffect(() => {
     if (!captureInput) return;
@@ -153,29 +158,31 @@ export default function VirtualKeyboard({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Tab") e.preventDefault();
 
-      // Prevent repeat events from held keys
-      if (e.repeat) return;
+      // Only trigger visual press/sound once per physical key press.
+      if (!e.repeat) {
+        setPressedKeys((prev) => {
+          const next = new Set(prev);
+          next.add(e.code);
+          return next;
+        });
 
-      setPressedKeys((prev) => {
-        const next = new Set(prev);
-        next.add(e.code);
-        return next;
-      });
-
-      if (soundEnabled) {
-        void playKeyDown(e.code);
+        if (soundEnabled) {
+          void playKeyDown(e.code);
+        }
       }
 
-      // Handle text input
+      const currentText = textRef.current;
+
+      // Handle text input (allow OS key repeat while key is held)
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-        setText(text + e.key);
+        setText(currentText + e.key);
       } else if (e.code === "Backspace") {
-        setText(text.slice(0, -1));
+        setText(currentText.slice(0, -1));
       } else if (e.code === "Space") {
         e.preventDefault();
-        setText(text + " ");
+        setText(currentText + " ");
       } else if (e.code === "Enter" && !e.ctrlKey) {
-        setText(text + "\n");
+        setText(currentText + "\n");
       }
     };
 
